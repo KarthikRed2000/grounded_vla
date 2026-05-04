@@ -34,7 +34,12 @@ def image_fingerprint(img: Image.Image, size: int = 8) -> str:
     tests actually exercise the re-encoding path.
     """
     thumb = img.convert("L").resize((size, size))
-    pixels = list(thumb.get_flattened_data())
+    # get_flattened_data() added in Pillow 10.4; getdata() works on all versions.
+    pixels = list(
+        thumb.get_flattened_data()
+        if hasattr(thumb, "get_flattened_data")
+        else thumb.getdata()
+    )
     avg = sum(pixels) / len(pixels)
     bits = "".join("1" if p > avg else "0" for p in pixels)
     return f"{int(bits, 2):0{size * size // 4}x}"
