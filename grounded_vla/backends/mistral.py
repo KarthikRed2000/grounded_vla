@@ -85,21 +85,23 @@ class MistralBackend(Backend):
         import torch
 
         chat = [{"role": "user", "content": prompt}]
-        input_ids = self._tokenizer.apply_chat_template(
-            chat, add_generation_prompt=True, return_tensors="pt"
-        ).to(self._model.device)
+        inputs = self._tokenizer.apply_chat_template(
+            chat,
+            add_generation_prompt=True,
+            return_tensors="pt",
+            return_dict=True,
+        )
+        inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
+        input_len = inputs["input_ids"].shape[1]
         with torch.inference_mode():
             out = self._model.generate(
-                input_ids,
+                **inputs,
                 max_new_tokens=config.max_new_tokens,
                 do_sample=config.temperature > 0,
                 temperature=max(config.temperature, 1e-5),
                 top_p=config.top_p,
             )
-        text = self._tokenizer.decode(
-            out[0, input_ids.shape[1] :], skip_special_tokens=True
-        )
-        return text
+        return self._tokenizer.decode(out[0, input_len:], skip_special_tokens=True)
 
     def close(self) -> None:
         if self._model is not None:

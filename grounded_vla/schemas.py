@@ -30,12 +30,45 @@ class ActionType(str, Enum):
     NOOP = "noop"
 
 
+# Synonym map: LLM-emitted strings that aren't canonical ActionType values.
+# Applied by the Action.type validator before pydantic attempts enum coercion,
+# so alias tolerance is automatic everywhere (parser, data loaders, tests).
+_ACTION_TYPE_ALIASES: dict[str, ActionType] = {
+    "hover": ActionType.CLICK,
+    "tap": ActionType.CLICK,
+    "press": ActionType.CLICK,
+    "submit": ActionType.CLICK,
+    "input": ActionType.TYPE,
+    "fill": ActionType.TYPE,
+    "choose": ActionType.SELECT,
+    "done": ActionType.STOP,
+    "finish": ActionType.STOP,
+}
+
+
 class Action(BaseModel):
     """A single action emitted by an agent."""
 
     model_config = ConfigDict(extra="forbid")
 
     type: ActionType
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _coerce_action_type(cls, v: object) -> ActionType:
+        # Already the right type — pass straight through.
+        # (In Python 3.10, str(ActionType.CLICK) == "ActionType.CLICK", not
+        # "click", so we must guard here before calling str().)
+        if isinstance(v, ActionType):
+            return v
+        raw = str(v).strip().lower()
+        # Return canonical enum value if it already matches.
+        try:
+            return ActionType(raw)
+        except ValueError:
+            pass
+        # Try alias table; fall back to NOOP rather than crashing a rollout.
+        return _ACTION_TYPE_ALIASES.get(raw, ActionType.NOOP)
     # Target element (selector, element id, or natural-language description).
     target: Optional[str] = None
     # Free-form payload (typed text for TYPE, answer content for ANSWER, etc).

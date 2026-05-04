@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
-from ..schemas import Action, ActionType, Observation, Task
+from ..schemas import Action, Observation, Task
 
 
 class Dataset(ABC):
@@ -27,8 +27,9 @@ class Dataset(ABC):
 
 
 def _action_from_dict(d: dict) -> Action:
+    # Pass the raw string; Action._coerce_action_type handles aliases + fallback.
     return Action(
-        type=ActionType(d["type"]),
+        type=d.get("type", "noop"),
         target=d.get("target"),
         value=d.get("value"),
         xy=tuple(d["xy"]) if d.get("xy") else None,
