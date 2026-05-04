@@ -6,7 +6,23 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
-from ..schemas import Action, Observation, Task
+from ..schemas import Action, ActionType, Observation, Task
+
+# Normalize non-canonical action-type strings to valid ActionType values before
+# constructing Action objects. This runs in the data layer so it works even on
+# Python environments where the schemas.py field_validator hasn't been deployed
+# yet (e.g. a Colab session with partially-updated code).
+_ACTION_TYPE_ALIASES: dict[str, str] = {
+    "hover": ActionType.CLICK,
+    "tap": ActionType.CLICK,
+    "press": ActionType.CLICK,
+    "submit": ActionType.CLICK,
+    "input": ActionType.TYPE,
+    "fill": ActionType.TYPE,
+    "choose": ActionType.SELECT,
+    "done": ActionType.STOP,
+    "finish": ActionType.STOP,
+}
 
 
 class Dataset(ABC):
@@ -27,9 +43,15 @@ class Dataset(ABC):
 
 
 def _action_from_dict(d: dict) -> Action:
-    # Pass the raw string; Action._coerce_action_type handles aliases + fallback.
+    raw = str(d.get("type", "noop")).strip().lower()
+    # Resolve aliases first so pydantic only ever sees canonical enum values.
+    atype = _ACTION_TYPE_ALIASES.get(raw, raw)
+    try:
+        ActionType(atype)  # validate; falls through to noop on unknown values
+    except ValueError:
+        atype = ActionType.NOOP
     return Action(
-        type=d.get("type", "noop"),
+        type=atype,
         target=d.get("target"),
         value=d.get("value"),
         xy=tuple(d["xy"]) if d.get("xy") else None,
