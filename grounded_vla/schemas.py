@@ -13,6 +13,38 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+def _dump_if_model(v: Any) -> Any:
+    """Convert pydantic model instances to dicts so validation is class-identity-safe.
+
+    Colab (and any editable-install environment) can end up with two copies of
+    grounded_vla in sys.modules. Pydantic 2 uses strict class-identity checks,
+    so an Observation built by copy-A fails in a TrajectoryStep from copy-B.
+    Round-tripping through model_dump() lets pydantic reconstruct from the
+    locally-correct class regardless of origin.
+    """
+    if v is None or isinstance(v, dict):
+        return v
+    if hasattr(v, "model_dump"):
+        return v.model_dump()
+    return v
+
+
+class _CoercingBase(BaseModel):
+    """Shared base that coerces all nested model fields before validation."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_nested_models(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        for k, v in list(data.items()):
+            if isinstance(v, list):
+                data[k] = [_dump_if_model(item) for item in v]
+            else:
+                data[k] = _dump_if_model(v)
+        return data
+
+
 class ActionType(str, Enum):
     """The set of discrete action primitives an agent can emit.
 
@@ -46,7 +78,7 @@ _ACTION_TYPE_ALIASES: dict[str, ActionType] = {
 }
 
 
-class Action(BaseModel):
+class Action(_CoercingBase):
     """A single action emitted by an agent."""
 
     model_config = ConfigDict(extra="forbid")
@@ -82,7 +114,7 @@ class Action(BaseModel):
         return self.type in (ActionType.ANSWER, ActionType.STOP)
 
 
-class Observation(BaseModel):
+class Observation(_CoercingBase):
     """A snapshot of the current environment state passed to the agent.
 
     `image_path` points at the current screenshot / diagram frame on disk.
@@ -104,7 +136,7 @@ class Observation(BaseModel):
         return Path(v)
 
 
-class Task(BaseModel):
+class Task(_CoercingBase):
     """A single evaluation task. One benchmark row = one Task."""
 
     model_config = ConfigDict(extra="forbid")
@@ -125,7 +157,7 @@ class Task(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
 
 
-class TrajectoryStep(BaseModel):
+class TrajectoryStep(_CoercingBase):
     model_config = ConfigDict(extra="forbid")
 
     observation: Observation
@@ -135,28 +167,8 @@ class TrajectoryStep(BaseModel):
     # Any error message from the environment (parsing, execution, etc).
     error: Optional[str] = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_schema_instances(cls, data: Any) -> Any:
-        """Coerce Observation/Action instances from any grounded_vla copy.
 
-        Colab (and editable installs in general) can end up with two copies of
-        the package in sys.modules — the editable source and a stale system
-        install. Pydantic 2 checks class identity strictly, so an Observation
-        built by copy-A fails validation in TrajectoryStep from copy-B.  We
-        round-trip through model_dump() so pydantic always reconstructs from
-        the locally-correct class.
-        """
-        if not isinstance(data, dict):
-            return data
-        for field in ("observation", "action"):
-            v = data.get(field)
-            if v is not None and not isinstance(v, dict) and hasattr(v, "model_dump"):
-                data[field] = v.model_dump()
-        return data
-
-
-class Trajectory(BaseModel):
+class Trajectory(_CoercingBase):
     """An agent's rollout for a single task."""
 
     model_config = ConfigDict(extra="forbid")
@@ -174,7 +186,7 @@ class Trajectory(BaseModel):
         return len(self.steps)
 
 
-class RunResult(BaseModel):
+class RunResult(_CoercingBase):
     """Aggregate result for one (agent, dataset) configuration."""
 
     model_config = ConfigDict(extra="forbid")
