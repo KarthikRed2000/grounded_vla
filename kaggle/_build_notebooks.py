@@ -296,7 +296,8 @@ nb03 = [
     code(
         "# Repo + GPU stack. Clone on first run, pull on re-run to get latest fixes.",
         "REPO_URL = 'https://github.com/<your-org>/grounded_vla.git'",
-        "!if [ ! -d /kaggle/working/grounded_vla ]; then git clone {REPO_URL} /kaggle/working/grounded_vla; else git -C /kaggle/working/grounded_vla pull; fi",
+        "!if [ ! -d /kaggle/working/grounded_vla ]; then git clone {REPO_URL} /kaggle/working/grounded_vla; fi",
+        "!git -C /kaggle/working/grounded_vla pull",
         "%cd /kaggle/working/grounded_vla",
         "!pip install -q -e .[gpu]",
         "!nvidia-smi",
@@ -486,7 +487,8 @@ nb04 = [
     ),
     code(
         "REPO_URL = 'https://github.com/<your-org>/grounded_vla.git'",
-        "!if [ ! -d /kaggle/working/grounded_vla ]; then git clone {REPO_URL} /kaggle/working/grounded_vla; else git -C /kaggle/working/grounded_vla pull; fi",
+        "!if [ ! -d /kaggle/working/grounded_vla ]; then git clone {REPO_URL} /kaggle/working/grounded_vla; fi",
+        "!git -C /kaggle/working/grounded_vla pull",
         "%cd /kaggle/working/grounded_vla",
         "!pip install -q -e .[gpu]",
     ),
@@ -561,7 +563,8 @@ nb05 = [
     ),
     code(
         "REPO_URL = 'https://github.com/<your-org>/grounded_vla.git'",
-        "!if [ ! -d /kaggle/working/grounded_vla ]; then git clone {REPO_URL} /kaggle/working/grounded_vla; else git -C /kaggle/working/grounded_vla pull; fi",
+        "!if [ ! -d /kaggle/working/grounded_vla ]; then git clone {REPO_URL} /kaggle/working/grounded_vla; fi",
+        "!git -C /kaggle/working/grounded_vla pull",
         "%cd /kaggle/working/grounded_vla",
         "!pip install -q -e .[gpu]",
     ),

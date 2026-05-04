@@ -106,14 +106,13 @@ GPU_CHECK_CELL = code(
 
 CLONE_REPO_CELLS = [
     code(
-        "# Clone (first run) or pull (re-run / re-attach) the repo into ephemeral /content.",
-        "# This ensures every session picks up the latest fixes from GitHub.",
+        "# Clone repo if absent, then always pull to get the latest fixes.",
+        "# With an editable install (-e) a pull is all that's needed — no reinstall.",
         "REPO_URL = 'https://github.com/<your-org>/grounded_vla.git'",
         "import os, subprocess",
         "if not os.path.exists('/content/grounded_vla'):",
         "    subprocess.run(['git', 'clone', REPO_URL, '/content/grounded_vla'], check=True)",
-        "else:",
-        "    subprocess.run(['git', '-C', '/content/grounded_vla', 'pull'], check=True)",
+        "subprocess.run(['git', '-C', '/content/grounded_vla', 'pull'], check=True)",
         "%cd /content/grounded_vla",
     ),
     code(
