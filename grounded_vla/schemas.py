@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ActionType(str, Enum):
@@ -134,6 +134,26 @@ class TrajectoryStep(BaseModel):
     valid: bool = True
     # Any error message from the environment (parsing, execution, etc).
     error: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_schema_instances(cls, data: Any) -> Any:
+        """Coerce Observation/Action instances from any grounded_vla copy.
+
+        Colab (and editable installs in general) can end up with two copies of
+        the package in sys.modules — the editable source and a stale system
+        install. Pydantic 2 checks class identity strictly, so an Observation
+        built by copy-A fails validation in TrajectoryStep from copy-B.  We
+        round-trip through model_dump() so pydantic always reconstructs from
+        the locally-correct class.
+        """
+        if not isinstance(data, dict):
+            return data
+        for field in ("observation", "action"):
+            v = data.get(field)
+            if v is not None and not isinstance(v, dict) and hasattr(v, "model_dump"):
+                data[field] = v.model_dump()
+        return data
 
 
 class Trajectory(BaseModel):
