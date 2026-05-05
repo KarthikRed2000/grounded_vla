@@ -107,7 +107,18 @@ class JsonlDataset(Dataset):
     def _to_task(self, obj: dict) -> Task:
         img = obj.get("image_path")
         if img and not Path(img).is_absolute():
-            img = str(self.base_dir / img)
+            candidate = self.base_dir / img
+            if not candidate.exists():
+                # Detect double-prefix: image_path starts with a directory
+                # whose name equals the last component of base_dir.
+                # e.g. base_dir=".../mind2web/images", img="images/<id>.png"
+                # → try base_dir / <id>.png instead.
+                img_parts = Path(img).parts
+                if img_parts and img_parts[0] == self.base_dir.name:
+                    alt = self.base_dir.joinpath(*img_parts[1:])
+                    if alt.exists():
+                        candidate = alt
+            img = str(candidate)
         obs = Observation(
             step=0,
             image_path=img,
