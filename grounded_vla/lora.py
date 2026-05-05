@@ -94,7 +94,7 @@ def train_lora(
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
-    dataset = _load_synthetic_dataset(jsonl_path, images_dir, processor, config.max_seq_len)
+    dataset = _load_synthetic_dataset(jsonl_path, images_dir, processor)
 
     args = TrainingArguments(
         output_dir=str(output_dir),
@@ -109,21 +109,67 @@ def train_lora(
         report_to=[],
     )
 
-    trainer = Trainer(model=model, args=args, train_dataset=dataset)
+    trainer = Trainer(
+        model=model,
+        args=args,
+        train_dataset=dataset,
+        data_collator=_collate_fn,
+    )
     trainer.train()
     model.save_pretrained(output_dir)
     _log.info("LoRA adapter saved to %s", output_dir)
     return output_dir
 
 
-def _load_synthetic_dataset(jsonl_path, images_dir, processor, max_seq_len):
+def _collate_fn(features):
+    """Dynamic-padding collator for multimodal LLaVA batches.
+
+    pixel_values / image_sizes are stacked as-is (same shape per batch).
+    Sequence tensors (input_ids, attention_mask, labels) are padded to the
+    longest example in the batch so that image tokens are never truncated.
+    """
+    import torch
+
+    batch = {}
+    seq_keys = {"input_ids", "attention_mask", "labels"}
+    stack_keys = {"pixel_values", "image_sizes"}
+
+    max_len = max(f["input_ids"].shape[-1] for f in features)
+
+    for key in features[0]:
+        if key in stack_keys:
+            batch[key] = torch.stack([f[key] for f in features])
+        elif key in seq_keys:
+            pad_val = -100 if key == "labels" else 0
+            tensors = []
+            for f in features:
+                t = f[key]
+                gap = max_len - t.shape[-1]
+                if gap > 0:
+                    t = torch.cat(
+                        [t, torch.full((*t.shape[:-1], gap), pad_val, dtype=t.dtype)], dim=-1
+                    )
+                tensors.append(t)
+            batch[key] = torch.stack(tensors)
+        else:
+            # unknown key – best-effort stack
+            try:
+                batch[key] = torch.stack([f[key] for f in features])
+            except Exception:
+                pass
+
+    return batch
+
+
+def _load_synthetic_dataset(jsonl_path, images_dir, processor):
     """Build a torch Dataset from the synthetic JSONL.
 
     Each example is rendered as an instruction + target-action string so
     the model learns to emit actions in our expected format.
+    No truncation is applied here — image placeholder tokens must never be
+    cut; the collator pads batches dynamically instead.
     """
     from PIL import Image
-    import torch
     from torch.utils.data import Dataset as TorchDataset
 
     jsonl_path = Path(jsonl_path)
@@ -145,32 +191,19 @@ def _load_synthetic_dataset(jsonl_path, images_dir, processor, max_seq_len):
                 "Thought: Looking at the image, I will perform the grounded action.\n"
                 "Action: " + json.dumps(gold)
             )
-            prompt = r["instruction"]
             chat = [
                 {
                     "role": "user",
                     "content": [
                         {"type": "image"},
-                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": r["instruction"]},
                     ],
                 },
                 {"role": "assistant", "content": [{"type": "text", "text": target}]},
             ]
             prompt_str = processor.apply_chat_template(chat, add_generation_prompt=False)
-            # Process WITHOUT truncation so image patch tokens are fully expanded
-            # first; then pad/truncate manually to avoid the token-count mismatch.
+            # No truncation — image placeholder tokens must match vision features exactly.
             enc = processor(images=image, text=prompt_str, return_tensors="pt")
-            cur = enc["input_ids"].shape[-1]
-            for k in ("input_ids", "attention_mask"):
-                if k not in enc:
-                    continue
-                v = enc[k]
-                if cur > max_seq_len:
-                    enc[k] = v[..., :max_seq_len]
-                elif cur < max_seq_len:
-                    pad_val = (processor.tokenizer.pad_token_id or 0) if k == "input_ids" else 0
-                    pad = torch.full((*v.shape[:-1], max_seq_len - cur), pad_val, dtype=v.dtype)
-                    enc[k] = torch.cat([v, pad], dim=-1)
             item = {k: v.squeeze(0) for k, v in enc.items()}
             item["labels"] = item["input_ids"].clone()
             return item
