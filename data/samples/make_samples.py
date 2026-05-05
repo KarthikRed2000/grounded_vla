@@ -729,22 +729,563 @@ def qa_fruit():
 
 
 # ---------------------------------------------------------------------------
+# New UI images (15)
+# ---------------------------------------------------------------------------
+
+def ui_modal():
+    img, d = _canvas()
+    _label(d, 10, 6, "Confirmation Dialog", size=14, color=(30, 30, 80))
+    d.rectangle([20, 28, W - 20, H - 8], fill=(255, 255, 255), outline=(180, 180, 180), width=2)
+    d.rectangle([20, 28, W - 20, 54], fill=(220, 50, 50))
+    _label(d, 28, 34, "Confirm Delete", size=14, color=(255, 255, 255))
+    _label(d, 30, 62, "Are you sure you want to delete this", size=12, color=(50, 50, 50))
+    _label(d, 30, 80, "item? This action cannot be undone.", size=12, color=(50, 50, 50))
+    _button(d, 32, 136, 90, 30, "Confirm", bg=(200, 50, 50))
+    _button(d, 136, 136, 90, 30, "Cancel", bg=(140, 140, 140))
+    return _save(img, "modal.png")
+
+
+def ui_form_contact():
+    img, d = _canvas((230, 245, 255))
+    _label(d, 10, 4, "Contact Us", size=16, color=(30, 30, 80))
+    _label(d, 10, 32, "Name")
+    _input_field(d, 10, 48, 290, 24)
+    _label(d, 10, 78, "Email")
+    _input_field(d, 10, 94, 290, 24, "your@email.com")
+    _label(d, 10, 124, "Message")
+    d.rectangle([10, 140, 300, 168], fill=(255, 255, 255), outline=(180, 180, 180), width=2)
+    _label(d, 18, 146, "Type your message here…", size=11, color=(160, 160, 160))
+    _button(d, 168, 176, 130, 22, "Send Message", bg=(60, 100, 200))
+    return _save(img, "form_contact.png")
+
+
+def ui_table():
+    img, d = _canvas()
+    _label(d, 10, 2, "User Directory", size=14, color=(30, 30, 80))
+    d.rectangle([6, 20, W - 6, 40], fill=(60, 100, 200))
+    for ci, h in enumerate(["Name", "Age", "Role"]):
+        _label(d, 14 + ci * 100, 26, h, size=12, color=(255, 255, 255))
+    rows = [("Alice", "28", "Admin"), ("Bob", "34", "Editor"), ("Carol", "25", "Viewer")]
+    for ri, (name, age, role) in enumerate(rows):
+        y = 42 + ri * 34
+        bg = (245, 247, 255) if ri % 2 == 0 else (255, 255, 255)
+        d.rectangle([6, y, W - 6, y + 32], fill=bg, outline=(210, 210, 220))
+        for ci, val in enumerate([name, age, role]):
+            _label(d, 14 + ci * 100, y + 9, val, size=12)
+    _label(d, 10, 148, "Page 1 of 3", size=11, color=(120, 120, 120))
+    _button(d, W - 86, 144, 80, 24, "Next ▶", bg=(60, 100, 200))
+    return _save(img, "table.png")
+
+
+def ui_tabs():
+    img, d = _canvas()
+    tab_names = ["Description", "Reviews", "Specs", "Shipping"]
+    for i, name in enumerate(tab_names):
+        x = 6 + i * 77
+        active = (i == 0)
+        bg = (255, 255, 255) if active else (225, 225, 230)
+        color = (30, 60, 180) if active else (80, 80, 80)
+        d.rectangle([x, 8, x + 74, 38], fill=bg, outline=(180, 180, 200))
+        if active:
+            d.line([x, 8, x + 74, 8], fill=(60, 100, 200), width=3)
+        _label(d, x + 4, 17, name, size=11, color=color)
+    d.rectangle([6, 38, W - 6, H - 6], fill=(255, 255, 255), outline=(180, 180, 200))
+    _label(d, 16, 50, "Overview of the product's main features", size=12, color=(60, 60, 60))
+    _label(d, 16, 68, "and benefits. Compatible with all major", size=12, color=(60, 60, 60))
+    _label(d, 16, 86, "platforms. Ships in 2-3 business days.", size=12, color=(60, 60, 60))
+    return _save(img, "tabs.png")
+
+
+def ui_breadcrumb():
+    img, d = _canvas()
+    _label(d, 10, 6, "You are here:", size=12, color=(100, 100, 100))
+    items = ["Home", "Electronics", "Laptops", "MacBook Pro"]
+    x = 10
+    for i, item in enumerate(items):
+        is_last = (i == len(items) - 1)
+        color = (50, 50, 50) if is_last else (60, 100, 200)
+        _label(d, x, 30, item, size=13, color=color)
+        bbox = d.textbbox((0, 0), item, font=_font(13))
+        tw = bbox[2] - bbox[0]
+        x += tw + 4
+        if not is_last:
+            _label(d, x, 30, " ›", size=13, color=(150, 150, 150))
+            x += 14
+    _label(d, 10, 64, "MacBook Pro 14-inch (2024)", size=15, color=(30, 30, 30))
+    _label(d, 10, 90, "Apple M3 Pro chip, 18 GB memory, 512 GB SSD", size=11, color=(80, 80, 80))
+    return _save(img, "breadcrumb.png")
+
+
+def ui_accordion():
+    img, d = _canvas()
+    _label(d, 10, 2, "Frequently Asked Questions", size=13, color=(30, 30, 80))
+    faqs = [
+        ("What is your return policy?", True, "We offer 30-day returns on all unused items."),
+        ("How long does shipping take?", False, None),
+        ("Do you offer warranties?", False, None),
+    ]
+    y = 24
+    for q, expanded, ans in faqs:
+        h = 52 if expanded else 32
+        bg = (235, 242, 255) if expanded else (252, 252, 252)
+        d.rectangle([6, y, W - 6, y + h], fill=bg, outline=(200, 200, 220))
+        arrow = "▼" if expanded else "▶"
+        _label(d, 14, y + 8, f"{arrow}  {q}", size=12, color=(30, 30, 80))
+        if expanded and ans:
+            _label(d, 28, y + 30, ans, size=11, color=(60, 60, 60))
+        y += h + 5
+    return _save(img, "accordion.png")
+
+
+def ui_step_wizard():
+    img, d = _canvas((240, 245, 255))
+    _label(d, 10, 2, "Create Account — Step 2 of 4", size=13, color=(30, 30, 80))
+    steps = [("1", "Account", False, True), ("2", "Address", True, False),
+             ("3", "Payment", False, False), ("4", "Review", False, False)]
+    for i, (num, name, active, done) in enumerate(steps):
+        x = 8 + i * 76
+        bg = (40, 160, 40) if done else (60, 100, 200) if active else (200, 200, 210)
+        fg = (255, 255, 255) if (done or active) else (80, 80, 80)
+        _button(d, x, 22, 72, 26, f"{num}. {name}", bg=bg, fg=fg)
+    _label(d, 14, 62, "Shipping Address", size=14, color=(30, 30, 80))
+    _label(d, 14, 86, "Street Address")
+    _input_field(d, 14, 102, 280, 26)
+    _button(d, 10, 158, 72, 28, "◀ Back", bg=(150, 150, 150))
+    _button(d, 228, 158, 82, 28, "Next ▶", bg=(60, 100, 200))
+    return _save(img, "step_wizard.png")
+
+
+def ui_lang_dropdown():
+    img, d = _canvas()
+    _label(d, 10, 8, "Select Language", size=14, color=(30, 30, 80))
+    d.rectangle([10, 34, 210, 60], fill=(255, 255, 255), outline=(150, 150, 150), width=2)
+    _label(d, 18, 42, "English", size=13)
+    d.polygon([(192, 44), (204, 44), (198, 54)], fill=(80, 80, 80))
+    langs = [("English", True), ("Spanish", False), ("French", False), ("German", False)]
+    for i, (lang, selected) in enumerate(langs):
+        y = 62 + i * 28
+        bg = (220, 230, 255) if selected else (255, 255, 255)
+        d.rectangle([10, y, 210, y + 26], fill=bg, outline=(200, 200, 210))
+        mark = "✓ " if selected else "   "
+        _label(d, 18, y + 6, f"{mark}{lang}", size=12,
+               color=(30, 60, 180) if selected else (60, 60, 60))
+    return _save(img, "dropdown_lang.png")
+
+
+def ui_sidebar():
+    img, d = _canvas()
+    d.rectangle([0, 0, 96, H], fill=(28, 38, 68))
+    _label(d, 8, 8, "MyApp", size=13, color=(180, 200, 255))
+    d.line([0, 30, 96, 30], fill=(50, 64, 100))
+    items = [("Dashboard", True), ("Analytics", False), ("Reports", False), ("Settings", False)]
+    for i, (item, active) in enumerate(items):
+        y = 38 + i * 36
+        if active:
+            d.rectangle([0, y, 96, y + 28], fill=(60, 100, 200))
+        _label(d, 8, y + 7, item, size=11,
+               color=(255, 255, 255) if active else (160, 175, 210))
+    d.rectangle([96, 0, W, H], fill=(248, 249, 252))
+    _label(d, 106, 16, "Dashboard", size=15, color=(30, 30, 80))
+    _label(d, 106, 42, "Welcome back, Alex!", size=12, color=(80, 80, 80))
+    _label(d, 106, 62, "Here's your overview for today.", size=11, color=(120, 120, 120))
+    return _save(img, "sidebar.png")
+
+
+def ui_banner():
+    img, d = _canvas((255, 198, 50))
+    d.text((W - 26, 4), "✕", fill=(160, 100, 0), font=_font(16))
+    _label(d, 10, 16, "Summer Sale", size=24, color=(110, 40, 0))
+    _label(d, 10, 50, "Up to 50% off select items!", size=14, color=(100, 40, 0))
+    _button(d, 10, 82, 118, 32, "Shop Now →", bg=(190, 70, 10), fg=(255, 255, 255))
+    _label(d, 10, 128, "Limited time only. Ends June 30.", size=12, color=(120, 60, 0))
+    return _save(img, "banner.png")
+
+
+def ui_toast():
+    img, d = _canvas((240, 242, 245))
+    _label(d, 10, 8, "Application", size=13, color=(80, 80, 80))
+    d.rounded_rectangle([14, 50, W - 14, 140], radius=8,
+                        fill=(36, 155, 80), outline=(20, 110, 55), width=2)
+    _label(d, 32, 72, "✓", size=22, color=(255, 255, 255))
+    _label(d, 64, 68, "Profile updated", size=14, color=(255, 255, 255))
+    _label(d, 64, 90, "successfully!", size=14, color=(255, 255, 255))
+    d.text((W - 32, 56), "✕", fill=(180, 230, 200), font=_font(16))
+    return _save(img, "toast.png")
+
+
+def ui_date_picker():
+    img, d = _canvas()
+    d.rectangle([6, 4, W - 6, 28], fill=(60, 100, 200))
+    _label(d, 70, 9, "March  2025", size=13, color=(255, 255, 255))
+    _label(d, 14, 10, "◀", size=13, color=(200, 220, 255))
+    _label(d, W - 26, 10, "▶", size=13, color=(200, 220, 255))
+    headers = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+    cw = 44
+    for i, h in enumerate(headers):
+        _label(d, 10 + i * cw, 32, h, size=10, color=(100, 100, 140))
+    # March 2025 starts on Saturday (index 6)
+    day = 1
+    for pos in range(6, 6 + 31):
+        col = pos % 7
+        row = pos // 7
+        x = 10 + col * cw
+        y = 50 + row * 26
+        if day == 15:
+            d.ellipse([x - 1, y - 2, x + 22, y + 18], fill=(60, 100, 200))
+            _label(d, x + 3, y, str(day), size=11, color=(255, 255, 255))
+        elif day == 22:
+            d.ellipse([x - 1, y - 2, x + 22, y + 18], fill=(200, 215, 245))
+            _label(d, x + 3, y, str(day), size=11, color=(30, 60, 180))
+        else:
+            _label(d, x + 3, y, str(day), size=11, color=(50, 50, 50))
+        day += 1
+    return _save(img, "date_picker.png")
+
+
+def ui_slider():
+    img, d = _canvas()
+    _label(d, 10, 14, "Price Range Filter", size=14, color=(30, 30, 80))
+    _label(d, 10, 44, "$0", size=12, color=(80, 80, 80))
+    _label(d, W - 40, 44, "$500", size=12, color=(80, 80, 80))
+    rx, rw = 30, W - 60
+    d.rectangle([rx, 72, rx + rw, 80], fill=(200, 200, 210), outline=(180, 180, 195))
+    fill_x = rx + int(150 / 500 * rw)
+    d.rectangle([rx, 72, fill_x, 80], fill=(60, 100, 200))
+    d.ellipse([fill_x - 10, 66, fill_x + 10, 86], fill=(60, 100, 200), outline=(30, 60, 150), width=2)
+    _label(d, fill_x - 16, 90, "$150", size=12, color=(60, 100, 200))
+    _label(d, 10, 126, "Selected range: $0 – $150", size=13, color=(50, 50, 50))
+    return _save(img, "slider.png")
+
+
+def ui_progress_bar():
+    img, d = _canvas()
+    _label(d, 10, 14, "Uploading document.pdf...", size=13, color=(30, 30, 80))
+    _label(d, 10, 44, "65% complete", size=12, color=(60, 100, 60))
+    d.rounded_rectangle([10, 66, W - 10, 92], radius=6, fill=(210, 215, 225), outline=(185, 190, 205))
+    fill_w = int(0.65 * (W - 24))
+    d.rounded_rectangle([12, 68, 12 + fill_w, 90], radius=4, fill=(50, 160, 60))
+    _label(d, 10, 102, "Size: 4.3 MB / 6.6 MB", size=11, color=(100, 100, 100))
+    _label(d, 10, 118, "Estimated time remaining: 12 seconds", size=11, color=(100, 100, 100))
+    _button(d, W - 88, 148, 80, 28, "Cancel", bg=(180, 60, 60))
+    return _save(img, "progress_bar.png")
+
+
+def ui_tooltip():
+    img, d = _canvas()
+    _label(d, 10, 14, "API Settings", size=14, color=(30, 30, 80))
+    _label(d, 10, 46, "API Key")
+    _input_field(d, 10, 62, 238, 28, "sk-xxxx-xxxx-xxxx")
+    d.ellipse([256, 64, 278, 86], fill=(90, 130, 210), outline=(55, 95, 175), width=2)
+    _label(d, 264, 68, "?", size=14, color=(255, 255, 255))
+    d.polygon([(264, 100), (274, 100), (269, 90)], fill=(28, 28, 28))
+    d.rounded_rectangle([60, 100, W - 4, 158], radius=6, fill=(28, 28, 28), outline=(20, 20, 20))
+    _label(d, 68, 108, "Your API key can be found", size=11, color=(240, 240, 240))
+    _label(d, 68, 126, "in account settings.", size=11, color=(240, 240, 240))
+    return _save(img, "tooltip.png")
+
+
+# ---------------------------------------------------------------------------
+# New Visual QA images (15)
+# ---------------------------------------------------------------------------
+
+def qa_line_chart():
+    img, d = _canvas((248, 248, 255))
+    _label(d, 10, 4, "Monthly Revenue 2024 ($k)", size=12, color=(30, 30, 80))
+    data = [("Jan", 20), ("Feb", 35), ("Mar", 28), ("Apr", 45), ("May", 40), ("Jun", 55)]
+    max_v = 60
+    xs, ys = [], []
+    for i, (month, val) in enumerate(data):
+        x = 28 + i * 46
+        y = 158 - int(val / max_v * 118)
+        xs.append(x); ys.append(y)
+        _label(d, x - 8, 162, month, size=9, color=(80, 80, 80))
+        _label(d, x - 8, y - 14, str(val), size=9, color=(60, 60, 160))
+    for i in range(len(xs) - 1):
+        d.line([xs[i], ys[i], xs[i + 1], ys[i + 1]], fill=(60, 100, 200), width=2)
+    for x, y in zip(xs, ys):
+        d.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(60, 100, 200), outline=(30, 60, 140))
+    d.line([20, 30, 20, 160], fill=(80, 80, 80), width=2)
+    d.line([20, 160, W - 10, 160], fill=(80, 80, 80), width=2)
+    return _save(img, "line_chart.png")
+
+
+def qa_histogram():
+    img, d = _canvas((255, 248, 240))
+    _label(d, 10, 4, "Score Distribution", size=14, color=(30, 30, 80))
+    bars = [("0-10", 3), ("10-20", 7), ("20-30", 12), ("30-40", 8), ("40-50", 4)]
+    max_v = 14
+    for i, (rng, cnt) in enumerate(bars):
+        x = 18 + i * 56
+        bar_h = int(cnt / max_v * 112)
+        y0 = 160 - bar_h
+        d.rectangle([x, y0, x + 50, 160], fill=(100, 149, 237), outline=(60, 100, 200))
+        _label(d, x + 16, y0 - 14, str(cnt), size=10, color=(60, 60, 60))
+        _label(d, x + 4, 163, rng, size=8, color=(80, 80, 80))
+    d.line([12, 28, 12, 162], fill=(80, 80, 80), width=2)
+    d.line([12, 162, W - 8, 162], fill=(80, 80, 80), width=2)
+    return _save(img, "histogram.png")
+
+
+def qa_venn():
+    img, d = _canvas((248, 255, 248))
+    _label(d, 10, 4, "Skill Set Venn Diagram", size=13, color=(30, 30, 80))
+    d.ellipse([18, 38, 188, 158], fill=(210, 225, 255), outline=(60, 100, 200), width=2)
+    d.ellipse([132, 38, 302, 158], fill=(255, 225, 210), outline=(200, 100, 60), width=2)
+    _label(d, 24, 168, "Machine Learning", size=10, color=(40, 80, 180))
+    _label(d, 200, 168, "Data Analysis", size=10, color=(180, 80, 40))
+    _label(d, 28, 78, "Python", size=10, color=(40, 80, 180))
+    _label(d, 36, 96, "R", size=10, color=(40, 80, 180))
+    _label(d, 148, 74, "Data", size=10, color=(50, 50, 50))
+    _label(d, 134, 92, "Statistics", size=10, color=(50, 50, 50))
+    _label(d, 234, 78, "SQL", size=10, color=(180, 80, 40))
+    _label(d, 228, 96, "Excel", size=10, color=(180, 80, 40))
+    return _save(img, "venn.png")
+
+
+def qa_periodic_fe():
+    img, d = _canvas((240, 248, 255))
+    _label(d, 10, 6, "Identify this periodic table element:", size=12, color=(30, 30, 80))
+    d.rectangle([68, 36, 252, 168], fill=(255, 140, 55), outline=(180, 95, 25), width=4)
+    _label(d, 86, 42, "26", size=14, color=(110, 55, 0))
+    _label(d, 116, 52, "Fe", size=46, color=(80, 30, 0))
+    _label(d, 110, 118, "Iron", size=18, color=(100, 50, 0))
+    _label(d, 76, 142, "Atomic Mass: 55.85", size=12, color=(110, 55, 0))
+    return _save(img, "periodic_fe.png")
+
+
+def qa_ruler():
+    img, d = _canvas((255, 255, 240))
+    _label(d, 10, 6, "What length is the blue object?", size=13, color=(30, 30, 80))
+    rx, ry, rw = 20, 90, W - 40
+    obj_w = int(7.5 / 10 * rw)
+    d.rectangle([rx, 54, rx + obj_w, 88], fill=(180, 210, 255), outline=(80, 120, 200), width=2)
+    _label(d, rx + obj_w // 2 - 18, 63, "Object", size=11, color=(40, 80, 180))
+    d.rectangle([rx, ry, rx + rw, ry + 28], fill=(255, 238, 170), outline=(160, 120, 40), width=2)
+    for i in range(11):
+        x = rx + int(i / 10 * rw)
+        tick_h = 18 if i % 5 == 0 else 10
+        d.line([x, ry, x, ry + tick_h], fill=(80, 50, 10), width=1)
+        if i % 5 == 0:
+            _label(d, x - 4, ry + 18, str(i), size=9, color=(60, 40, 0))
+    _label(d, rx + rw - 14, ry + 18, "cm", size=9, color=(60, 40, 0))
+    _label(d, 10, 148, "Measured length: 7.5 cm", size=12, color=(60, 60, 60))
+    return _save(img, "ruler.png")
+
+
+def qa_protractor():
+    img, d = _canvas((250, 255, 255))
+    _label(d, 10, 4, "What angle is shown on the protractor?", size=12, color=(30, 30, 80))
+    cx, cy, r = 160, 158, 104
+    d.pieslice([cx - r, cy - r, cx + r, cy + r],
+               start=180, end=360, fill=(228, 235, 255), outline=(100, 130, 220), width=2)
+    d.line([cx - r, cy, cx + r, cy], fill=(80, 80, 80), width=2)
+    for deg in range(0, 181, 15):
+        a = math.radians(180 - deg)
+        x1 = cx + (r - 6) * math.cos(a); y1 = cy - (r - 6) * math.sin(a)
+        x2 = cx + r * math.cos(a);       y2 = cy - r * math.sin(a)
+        d.line([x1, y1, x2, y2], fill=(80, 80, 80), width=1)
+        if deg % 45 == 0:
+            xl = cx + (r - 20) * math.cos(a); yl = cy - (r - 20) * math.sin(a)
+            _label(d, xl - 7, yl - 7, str(deg), size=9, color=(60, 60, 60))
+    a65 = math.radians(180 - 65)
+    d.line([cx, cy, int(cx + r * math.cos(a65)), int(cy - r * math.sin(a65))],
+           fill=(200, 50, 50), width=3)
+    _label(d, cx + 28, cy - 52, "65°", size=14, color=(200, 50, 50))
+    _label(d, 10, 172, "Type: acute (< 90°)", size=11, color=(80, 80, 80))
+    return _save(img, "protractor.png")
+
+
+def qa_compass():
+    img, d = _canvas((240, 248, 255))
+    _label(d, 10, 4, "Which direction does the needle point?", size=12, color=(30, 30, 80))
+    cx, cy, r = 160, 108, 72
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 240), outline=(80, 80, 80), width=3)
+    for lbl, ax, ay in [("N", cx - 6, cy - r + 2), ("S", cx - 6, cy + r - 16),
+                        ("E", cx + r - 14, cy - 7), ("W", cx - r + 4, cy - 7)]:
+        _label(d, ax, ay, lbl, size=13, color=(60, 60, 60))
+    # NE needle (45° from north = upper-right)
+    offset = int(r * 0.7 * math.sin(math.radians(45)))
+    nx, ny = cx + offset, cy - offset
+    sx, sy = cx - int(offset * 0.6), cy + int(offset * 0.6)
+    d.line([cx, cy, nx, ny], fill=(210, 50, 50), width=5)
+    d.line([cx, cy, sx, sy], fill=(80, 80, 80), width=4)
+    d.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=(30, 30, 30))
+    _label(d, 10, 172, "Red tip → North-East", size=11, color=(160, 60, 60))
+    return _save(img, "compass.png")
+
+
+def qa_calendar():
+    img, d = _canvas()
+    d.rectangle([0, 0, W, 24], fill=(60, 100, 200))
+    _label(d, 80, 5, "November  2024", size=14, color=(255, 255, 255))
+    headers = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+    cw = 44
+    for i, h in enumerate(headers):
+        _label(d, 10 + i * cw, 28, h, size=10, color=(80, 80, 120))
+    # November 2024 starts on Friday (index 5)
+    day = 1
+    for pos in range(5, 5 + 30):
+        col = pos % 7
+        row = pos // 7
+        x = 10 + col * cw
+        y = 46 + row * 26
+        _label(d, x + 6, y, str(day), size=11, color=(50, 50, 50))
+        day += 1
+    return _save(img, "calendar.png")
+
+
+def qa_speedometer():
+    img, d = _canvas((28, 28, 48))
+    _label(d, 10, 4, "What speed is shown on the gauge?", size=12, color=(190, 195, 255))
+    cx, cy, r = 160, 120, 86
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(18, 18, 38), outline=(80, 80, 105), width=4)
+    for spd in range(0, 121, 20):
+        frac = spd / 120
+        a = math.radians(210 - frac * 240)
+        x1 = cx + (r - 8) * math.cos(a); y1 = cy - (r - 8) * math.sin(a)
+        x2 = cx + r * math.cos(a);       y2 = cy - r * math.sin(a)
+        d.line([x1, y1, x2, y2], fill=(150, 150, 160), width=2)
+        xl = cx + (r - 22) * math.cos(a); yl = cy - (r - 22) * math.sin(a)
+        _label(d, xl - 8, yl - 7, str(spd), size=9, color=(150, 150, 160))
+    na = math.radians(210 - (75 / 120) * 240)
+    d.line([cx, cy, int(cx + (r - 12) * math.cos(na)), int(cy - (r - 12) * math.sin(na))],
+           fill=(220, 55, 55), width=3)
+    d.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=(70, 70, 90))
+    _label(d, cx - 16, cy + 18, "75", size=20, color=(230, 230, 240))
+    _label(d, cx - 12, cy + 42, "mph", size=12, color=(150, 150, 170))
+    _label(d, 10, 170, "Max: 120 mph", size=11, color=(120, 120, 140))
+    return _save(img, "speedometer.png")
+
+
+def qa_battery():
+    img, d = _canvas()
+    _label(d, 10, 8, "What is the battery status?", size=13, color=(30, 30, 80))
+    bx, by, bw, bh = 80, 48, 160, 80
+    d.rectangle([bx, by, bx + bw, by + bh], fill=(235, 235, 235), outline=(60, 60, 60), width=3)
+    d.rectangle([bx + bw, by + bh // 3, bx + bw + 12, by + 2 * bh // 3], fill=(60, 60, 60))
+    fill_w = int(0.75 * (bw - 6))
+    d.rectangle([bx + 3, by + 3, bx + 3 + fill_w, by + bh - 3], fill=(38, 195, 75))
+    bltx = bx + bw // 2
+    d.polygon([(bltx - 8, by + 12), (bltx + 6, by + 12), (bltx - 2, by + bh // 2 - 2),
+               (bltx + 10, by + bh // 2 - 2), (bltx - 6, by + bh - 14),
+               (bltx + 2, by + bh // 2 + 2), (bltx - 10, by + bh // 2 + 2)],
+              fill=(255, 238, 50))
+    _label(d, bx + bw // 2 - 18, by + bh + 8, "75%", size=14, color=(38, 155, 60))
+    _label(d, bx + bw // 2 - 36, by + bh + 28, "⚡ Charging", size=12, color=(70, 70, 70))
+    return _save(img, "battery.png")
+
+
+def qa_signal_bars():
+    img, d = _canvas()
+    _label(d, 10, 8, "How many signal bars are filled?", size=13, color=(30, 30, 80))
+    heights = [18, 34, 50, 66, 82]
+    filled = 4
+    bx = 80
+    for i, h in enumerate(heights):
+        x = bx + i * 34
+        yb = 170
+        color = (38, 160, 75) if i < filled else (195, 195, 200)
+        outline = (20, 120, 50) if i < filled else (160, 160, 165)
+        d.rectangle([x, yb - h, x + 22, yb], fill=color, outline=outline)
+    _label(d, 76, 178, "4 out of 5 bars filled", size=11, color=(38, 140, 60))
+    _label(d, 10, 60, "Signal Strength", size=13, color=(50, 50, 50))
+    return _save(img, "signal_bars.png")
+
+
+def qa_math_fraction():
+    img, d = _canvas((255, 255, 240))
+    _label(d, 10, 6, "What fraction is shown? Simplify if possible.", size=12, color=(30, 30, 80))
+    cx = W // 2
+    _label(d, cx - 18, 44, "3", size=54, color=(30, 30, 120))
+    d.line([cx - 44, 112, cx + 44, 112], fill=(30, 30, 120), width=5)
+    _label(d, cx - 18, 120, "4", size=54, color=(30, 30, 120))
+    _label(d, 10, 180, "Already in simplest form.  0.75 as decimal.", size=11, color=(100, 100, 100))
+    return _save(img, "math_fraction.png")
+
+
+def qa_dna():
+    img, d = _canvas((230, 248, 255))
+    _label(d, 10, 4, "What biological molecule is illustrated?", size=12, color=(30, 30, 80))
+    for x in range(20, W - 10, 4):
+        t = (x - 20) / 28
+        y1 = int(105 + 52 * math.sin(t))
+        y2 = int(105 - 52 * math.sin(t))
+        d.ellipse([x - 3, y1 - 3, x + 3, y1 + 3], fill=(60, 100, 200))
+        d.ellipse([x - 3, y2 - 3, x + 3, y2 + 3], fill=(200, 75, 55))
+        if int(t * 9) % 5 == 0:
+            d.line([x, y1, x, y2], fill=(80, 170, 100), width=2)
+    _label(d, 10, 166, "DNA  (Deoxyribonucleic Acid)  — 2 strands", size=11, color=(55, 55, 55))
+    return _save(img, "dna.png")
+
+
+def qa_balance():
+    img, d = _canvas((250, 255, 250))
+    _label(d, 10, 4, "Which side of the balance scale is heavier?", size=12, color=(30, 30, 80))
+    cx = W // 2
+    d.line([cx, 40, cx, 148], fill=(100, 80, 40), width=4)
+    d.ellipse([cx - 6, 36, cx + 6, 48], fill=(80, 60, 20))
+    # Tilted beam: left lower (heavier)
+    d.line([cx - 100, 76, cx + 100, 54], fill=(100, 80, 40), width=4)
+    # Left pan (lower, 5 kg)
+    lx, ly = cx - 100, 76
+    d.line([lx, ly, lx, ly + 38], fill=(120, 100, 60), width=2)
+    d.ellipse([lx - 32, ly + 36, lx + 32, ly + 54], fill=(175, 158, 98), outline=(120, 100, 60), width=2)
+    _label(d, lx - 16, ly + 42, "5 kg", size=12, color=(60, 40, 20))
+    # Right pan (higher, 3 kg)
+    rx, ry = cx + 100, 54
+    d.line([rx, ry, rx, ry + 38], fill=(120, 100, 60), width=2)
+    d.ellipse([rx - 32, ry + 36, rx + 32, ry + 54], fill=(175, 158, 98), outline=(120, 100, 60), width=2)
+    _label(d, rx - 16, ry + 42, "3 kg", size=12, color=(60, 40, 20))
+    _label(d, 10, 166, "Left (5 kg) is heavier → left side tilts down", size=11, color=(70, 70, 70))
+    return _save(img, "balance.png")
+
+
+def qa_scatter():
+    img, d = _canvas((250, 250, 255))
+    _label(d, 10, 2, "Height (cm) vs Weight (kg)", size=13, color=(30, 30, 80))
+    d.line([30, 22, 30, 162], fill=(80, 80, 80), width=2)
+    d.line([30, 162, W - 8, 162], fill=(80, 80, 80), width=2)
+    _label(d, 2, 86, "H", size=10, color=(80, 80, 80))
+    _label(d, 2, 98, "t", size=10, color=(80, 80, 80))
+    _label(d, 110, 168, "Weight (kg)", size=10, color=(80, 80, 80))
+    cluster = [(60, 128), (76, 116), (90, 108), (104, 100), (116, 92),
+               (128, 84), (140, 76), (152, 70), (164, 62), (176, 55), (188, 48)]
+    for px, py in cluster:
+        d.ellipse([px - 4, py - 4, px + 4, py + 4], fill=(60, 100, 200), outline=(30, 60, 140))
+    outliers = [(50, 58), (200, 138)]
+    for px, py in outliers:
+        d.ellipse([px - 5, py - 5, px + 5, py + 5], fill=(200, 55, 55), outline=(140, 30, 30))
+    _label(d, W - 58, 150, "r > 0", size=11, color=(38, 155, 60))
+    _label(d, 10, 180, "Blue = cluster (11 pts)  Red = outliers (2 pts)", size=9, color=(80, 80, 80))
+    return _save(img, "scatter.png")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 GENERATORS = [
-    # UI / web
+    # UI / web (original 24)
     ui_login, ui_submit, ui_search, ui_dropdown, ui_navbar,
     ui_signup, ui_cart, ui_email_form, ui_password, ui_checkbox,
     ui_close, ui_pagination, ui_download, ui_delete, ui_save,
     ui_upload, ui_filter, ui_sort, ui_settings, ui_profile,
     ui_scroll, ui_terms, ui_notification, ui_rating,
-    # QA / visual
+    # QA / visual (original 22)
     qa_diagram, qa_barchart, qa_piechart, qa_thermometer, qa_clock,
     qa_trafficlight, qa_flag, qa_shapes, qa_colors, qa_count,
     qa_equation, qa_direction, qa_co2, qa_element, qa_map,
     qa_chart_highest, qa_largest_slice, qa_logo_color,
     qa_next_number, qa_planet, qa_weather, qa_fruit,
+    # New UI images (15)
+    ui_modal, ui_form_contact, ui_table, ui_tabs, ui_breadcrumb,
+    ui_accordion, ui_step_wizard, ui_lang_dropdown, ui_sidebar,
+    ui_banner, ui_toast, ui_date_picker, ui_slider, ui_progress_bar,
+    ui_tooltip,
+    # New VQA images (15)
+    qa_line_chart, qa_histogram, qa_venn, qa_periodic_fe, qa_ruler,
+    qa_protractor, qa_compass, qa_calendar, qa_speedometer, qa_battery,
+    qa_signal_bars, qa_math_fraction, qa_dna, qa_balance, qa_scatter,
 ]
 
 
