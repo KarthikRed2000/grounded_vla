@@ -138,7 +138,7 @@ def _load_synthetic_dataset(jsonl_path, images_dir, processor, max_seq_len):
             r = rows[i]
             img_path = Path(r["image_path"])
             if not img_path.is_absolute():
-                img_path = images_dir.parent / img_path
+                img_path = images_dir / img_path
             image = Image.open(img_path).convert("RGB")
             gold = r["gold_actions"][0]
             target = (
@@ -154,7 +154,7 @@ def _load_synthetic_dataset(jsonl_path, images_dir, processor, max_seq_len):
                         {"type": "text", "text": prompt},
                     ],
                 },
-                {"role": "assistant", "content": target},
+                {"role": "assistant", "content": [{"type": "text", "text": target}]},
             ]
             prompt_str = processor.apply_chat_template(chat, add_generation_prompt=False)
             enc = processor(
