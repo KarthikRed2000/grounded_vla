@@ -157,14 +157,20 @@ def _load_synthetic_dataset(jsonl_path, images_dir, processor, max_seq_len):
                 {"role": "assistant", "content": [{"type": "text", "text": target}]},
             ]
             prompt_str = processor.apply_chat_template(chat, add_generation_prompt=False)
-            enc = processor(
-                images=image,
-                text=prompt_str,
-                return_tensors="pt",
-                padding="max_length",
-                truncation=True,
-                max_length=max_seq_len,
-            )
+            # Process WITHOUT truncation so image patch tokens are fully expanded
+            # first; then pad/truncate manually to avoid the token-count mismatch.
+            enc = processor(images=image, text=prompt_str, return_tensors="pt")
+            cur = enc["input_ids"].shape[-1]
+            for k in ("input_ids", "attention_mask"):
+                if k not in enc:
+                    continue
+                v = enc[k]
+                if cur > max_seq_len:
+                    enc[k] = v[..., :max_seq_len]
+                elif cur < max_seq_len:
+                    pad_val = (processor.tokenizer.pad_token_id or 0) if k == "input_ids" else 0
+                    pad = torch.full((*v.shape[:-1], max_seq_len - cur), pad_val, dtype=v.dtype)
+                    enc[k] = torch.cat([v, pad], dim=-1)
             item = {k: v.squeeze(0) for k, v in enc.items()}
             item["labels"] = item["input_ids"].clone()
             return item
