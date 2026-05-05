@@ -7,6 +7,17 @@ from __future__ import annotations
 
 from ..schemas import Observation, Trajectory
 
+# Mind2Web rows embed the full cleaned_html which can be 20k–30k tokens.
+# We truncate here so the combined prompt stays well within Mistral/LLaVA's
+# 32768-token context window and generation doesn't stall.
+_MAX_OBS_TEXT_CHARS = 4_000
+
+
+def _trunc(text: str, limit: int = _MAX_OBS_TEXT_CHARS) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n[... truncated {len(text) - limit} chars ...]"
+
 
 _ACTION_FORMAT = (
     "Respond in exactly this format:\n"
@@ -38,7 +49,7 @@ def format_react_prompt(task_instruction: str, obs_text: str, history: Trajector
                 f"Action: type={step.action.type.value}, target={step.action.target}, value={step.action.value}"
             )
         lines.append("")
-    lines.append(f"Current observation (text):\n{obs_text or '[no textual observation]'}")
+    lines.append(f"Current observation (text):\n{_trunc(obs_text) if obs_text else '[no textual observation]'}")
     lines.append("")
     lines.append("What should you do next?")
     return "\n".join(lines)
@@ -51,7 +62,7 @@ def format_vlm_single_shot_prompt(task_instruction: str, obs: Observation) -> st
         f"Instruction: {task_instruction}",
     ]
     if obs.text:
-        lines.append(f"Auxiliary text (optional): {obs.text}")
+        lines.append(f"Auxiliary text (optional): {_trunc(obs.text)}")
     lines.append("")
     lines.append(_ACTION_FORMAT)
     return "\n".join(lines)
@@ -81,6 +92,6 @@ def format_ora_prompt(task_instruction: str, obs: Observation, history: Trajecto
             )
         lines.append("")
     if obs.text:
-        lines.append(f"Auxiliary text (if present, secondary to the image): {obs.text}")
+        lines.append(f"Auxiliary text (if present, secondary to the image): {_trunc(obs.text)}")
     lines.append("OBSERVE the image. REASON about the next action. ACT.")
     return "\n".join(lines)
