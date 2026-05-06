@@ -227,7 +227,18 @@ def _load_synthetic_dataset(jsonl_path, images_dir, processor):
             # No truncation — image placeholder tokens must match vision features exactly.
             enc = processor(images=image, text=prompt_str, return_tensors="pt")
             item = {k: v.squeeze(0) for k, v in enc.items()}
-            item["labels"] = item["input_ids"].clone()
+
+            # Only supervise the assistant response tokens; mask the prompt with -100.
+            # Encode just the user turn (with generation prompt) to measure prompt length.
+            prompt_only_str = processor.apply_chat_template(
+                chat[:1], add_generation_prompt=True
+            )
+            prompt_enc = processor(images=image, text=prompt_only_str, return_tensors="pt")
+            prompt_len = prompt_enc["input_ids"].shape[-1]
+
+            labels = item["input_ids"].clone()
+            labels[:prompt_len] = -100  # mask prompt tokens from loss
+            item["labels"] = labels
             return item
 
     return _DS()
