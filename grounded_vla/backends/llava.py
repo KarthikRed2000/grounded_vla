@@ -80,9 +80,14 @@ class LLaVABackend(Backend):
             load_kwargs["torch_dtype"] = torch.float16
             load_kwargs["device_map"] = self.device
 
-        self._processor = AutoProcessor.from_pretrained(
-            self.model_id, cache_dir=self.hf_cache_dir
-        )
+        # When model_id is a local directory, cache_dir must not be passed —
+        # newer huggingface_hub validates repo_id format and rejects local paths.
+        import pathlib
+        _is_local = pathlib.Path(self.model_id).exists()
+        _proc_kw = {} if _is_local else {"cache_dir": self.hf_cache_dir}
+        if not _is_local and self.hf_cache_dir:
+            load_kwargs["cache_dir"] = self.hf_cache_dir
+        self._processor = AutoProcessor.from_pretrained(self.model_id, **_proc_kw)
         self._model = LlavaNextForConditionalGeneration.from_pretrained(
             self.model_id, **load_kwargs
         )
