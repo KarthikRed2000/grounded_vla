@@ -73,14 +73,24 @@ def train_lora(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    processor = AutoProcessor.from_pretrained(config.base_model)
+    # Normalise base_model: if it's an absolute local path (e.g. /cache/model-name),
+    # convert to HF Hub ID and use the parent directory as cache_dir.
+    _base_model = config.base_model
+    _cache_dir: Optional[str] = None
+    if _base_model.count("/") > 1:
+        _p = Path(_base_model)
+        _cache_dir = str(_p.parent)
+        _base_model = f"llava-hf/{_p.name}"
+
+    processor = AutoProcessor.from_pretrained(_base_model, cache_dir=_cache_dir)
     bnb = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_use_double_quant=True,
     )
     model = LlavaNextForConditionalGeneration.from_pretrained(
-        config.base_model, quantization_config=bnb, device_map="auto"
+        _base_model, quantization_config=bnb, device_map="auto",
+        **({"cache_dir": _cache_dir} if _cache_dir else {}),
     )
     model = prepare_model_for_kbit_training(model)
     lora_cfg = LoraConfig(
