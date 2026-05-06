@@ -35,17 +35,23 @@ class LLaVABackend(Backend):
         hf_cache_dir: Optional[str] = None,
     ) -> None:
         # Notebooks sometimes pass model_id as a full local path like
-        # "/cache/llava-v1.6-mistral-7b-hf".  HuggingFace Hub validates
-        # repo_id and rejects strings with >1 slash, and the flat path never
-        # actually exists on disk (HF stores snapshots in its own structure).
-        # Normalise: treat the parent directory as cache_dir and reconstruct
-        # the proper Hub ID from the basename.
+        # "/cache/llava-v1.6-mistral-7b-hf".  Two cases:
+        #   a) The directory EXISTS on disk (snapshot_download --local-dir style):
+        #      pass the path directly to from_pretrained; no cache_dir needed.
+        #   b) The directory does NOT exist (HF cache-dir style):
+        #      reconstruct the Hub ID from the basename and use the parent as
+        #      cache_dir so HF can find the models--* snapshot tree.
         if model_id.count("/") > 1:
             import pathlib as _pl
             _p = _pl.Path(model_id)
-            if hf_cache_dir is None:
-                hf_cache_dir = str(_p.parent)
-            model_id = f"llava-hf/{_p.name}"
+            if _p.is_dir():
+                # Local directory from snapshot_download --local-dir
+                hf_cache_dir = None  # from_pretrained loads directly from the path
+            else:
+                # HF cache tree: parent is cache_dir, name maps to Hub ID
+                if hf_cache_dir is None:
+                    hf_cache_dir = str(_p.parent)
+                model_id = f"llava-hf/{_p.name}"
         self.model_id = model_id
         self.device = device
         self.quantize = quantize
@@ -92,9 +98,19 @@ class LLaVABackend(Backend):
             load_kwargs["torch_dtype"] = torch.float16
             load_kwargs["device_map"] = self.device
 
-        self._processor = AutoProcessor.from_pretrained(
-            self.model_id, cache_dir=self.hf_cache_dir
-        )
+        # Temporarily lift TRANSFORMERS_OFFLINE so that a missing
+        # processor_config.json can be fetched once from the Hub.
+        # This is a no-op when the network is already unrestricted.
+        import os as _os
+        _offline = _os.environ.pop("TRANSFORMERS_OFFLINE", None)
+        try:
+            self._processor = AutoProcessor.from_pretrained(
+                self.model_id, cache_dir=self.hf_cache_dir
+            )
+        finally:
+            if _offline is not None:
+                _os.environ["TRANSFORMERS_OFFLINE"] = _offline
+
         self._model = LlavaNextForConditionalGeneration.from_pretrained(
             self.model_id, **load_kwargs
         )

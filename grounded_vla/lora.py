@@ -73,16 +73,28 @@ def train_lora(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Normalise base_model: if it's an absolute local path (e.g. /cache/model-name),
-    # convert to HF Hub ID and use the parent directory as cache_dir.
+    # Normalise base_model path.  Two cases:
+    #   a) Path exists on disk (snapshot_download --local-dir style):
+    #      pass the path directly; no cache_dir needed.
+    #   b) Path doesn't exist (HF cache tree):
+    #      infer Hub ID + cache_dir from parent/basename.
     _base_model = config.base_model
     _cache_dir: Optional[str] = None
     if _base_model.count("/") > 1:
         _p = Path(_base_model)
-        _cache_dir = str(_p.parent)
-        _base_model = f"llava-hf/{_p.name}"
+        if _p.is_dir():
+            _cache_dir = None  # load directly from local path
+        else:
+            _cache_dir = str(_p.parent)
+            _base_model = f"llava-hf/{_p.name}"
 
-    processor = AutoProcessor.from_pretrained(_base_model, cache_dir=_cache_dir)
+    import os as _os
+    _offline = _os.environ.pop("TRANSFORMERS_OFFLINE", None)
+    try:
+        processor = AutoProcessor.from_pretrained(_base_model, cache_dir=_cache_dir)
+    finally:
+        if _offline is not None:
+            _os.environ["TRANSFORMERS_OFFLINE"] = _offline
     bnb = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
