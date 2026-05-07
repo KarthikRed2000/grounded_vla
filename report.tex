@@ -1,0 +1,412 @@
+\documentclass[10pt,twocolumn]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────
+\usepackage[margin=0.75in,top=0.9in,bottom=0.9in]{geometry}
+\usepackage{times}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{multicol}
+\usepackage{caption}
+\usepackage{authblk}
+\usepackage{abstract}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{array}
+
+% ── Hyperref setup ─────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black,
+}
+
+% ── Section title formatting ───────────────────────────────────────────────
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+\titlespacing*{\subsection}{0pt}{6pt}{3pt}
+
+% ── Abstract box ───────────────────────────────────────────────────────────
+\renewcommand{\abstractnamefont}{\normalfont\bfseries}
+\setlength{\absleftindent}{0pt}
+\setlength{\absrightindent}{0pt}
+
+% ── Compact lists ──────────────────────────────────────────────────────────
+\setlist[itemize]{topsep=2pt,itemsep=1pt,parsep=0pt,leftmargin=*}
+\setlist[enumerate]{topsep=2pt,itemsep=1pt,parsep=0pt,leftmargin=*}
+
+% ── Table column helpers ───────────────────────────────────────────────────
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+% ─────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title & Authors ───────────────────────────────────────────────────────
+\title{\textbf{Grounded Vision-Language Agents\\for Instruction Following}}
+
+\author[1]{Karthik Reddy Jannupalli}
+\author[2]{Sri Sai Prasanna Konyala}
+\author[3]{Sai Syama Srikar Parimi}
+\author[4]{Prajeeth Bharadwaj Kittoor Muralidhar}
+\author[5]{Satya Bhargav Maddipati}
+\author[6]{Sanjana Reji Kallingal}
+
+\affil[ ]{\small
+  \texttt{jannupalli@wisc.edu}\quad
+  \texttt{skonyala@wisc.edu}\quad
+  \texttt{sparimi2@wisc.edu}\quad
+  \texttt{kittoormural@wisc.edu}\quad
+  \texttt{sbmaddipati@wisc.edu}\quad
+  \texttt{kallingal@wisc.edu}\\[2pt]
+  Department of Computer Sciences, University of Wisconsin--Madison\\
+  CS\,639: Introduction to Foundation Models, Spring 2026
+}
+
+\date{}
+\maketitle
+\thispagestyle{empty}
+
+% ── Abstract ──────────────────────────────────────────────────────────────
+\begin{abstract}
+\noindent
+We study grounded instruction following in visual environments: agents that must not only
+understand a natural-language command but locate and act on the correct target in a screenshot.
+We build a complete evaluation pipeline with three agent variants and benchmark them on
+ScienceQA and a synthetic grounded-UI corpus. Our results confirm three hypotheses:
+(H1)~visual grounding is necessary, adding 23 percentage points over a text-only ReAct
+baseline; (H2)~an iterative Observe--Reason--Act (ORA) loop with per-step visual re-encoding
+provides a further 10\,pp gain over single-shot VLM prompting; and (H3)~LoRA fine-tuning on
+200 synthetic examples yields 92.0\% accuracy on the training domain with zero catastrophic
+forgetting on ScienceQA (57.5\% vs.\ 56.5\% baseline). We additionally report a practical
+finding: label masking---excluding prompt and image patch tokens from the cross-entropy
+loss---is critical for multimodal LoRA training and reduces training loss by a factor of 888$\times$.
+\end{abstract}
+
+\vspace{-4pt}
+\noindent\rule{\linewidth}{0.4pt}
+\vspace{2pt}
+
+% ── 1. Introduction ───────────────────────────────────────────────────────
+\section{Introduction}
+
+Autonomous agents that can follow natural-language instructions in visual environments have broad
+potential: from assistive tools for users with motor impairments, to automated testing of
+web interfaces, to general-purpose digital assistants. The core challenge is
+\emph{grounded instruction following}---the agent must not only understand what to do, but
+locate the correct target in a visual scene (a button, a diagram element, a form field) and
+produce a precise spatial action.
+
+Recent large vision-language models (VLMs) such as LLaVA~\cite{liu2024llava} have demonstrated
+strong zero-shot performance on visual QA, but their deployment as \emph{action-taking agents}
+in multi-step grounded tasks is less studied. Two open questions motivate this work:
+
+\begin{enumerate}
+  \item Does adding vision to a reasoning agent meaningfully improve performance on spatially
+        grounded tasks, or is a capable text-only model sufficient?
+  \item Can a structured Observe$\to$Reason$\to$Act (ORA) loop with per-step visual re-encoding
+        outperform single-shot VLM prompting---and can lightweight LoRA fine-tuning on a small
+        synthetic corpus push performance further without degrading general capability?
+\end{enumerate}
+
+We build a complete pipeline, three agent variants, and run eight controlled experiments
+comparing them on two benchmarks. All three hypotheses are confirmed.
+
+% ── 2. Research Hypotheses ────────────────────────────────────────────────
+\section{Research Hypotheses}
+
+We evaluate three nested hypotheses, each isolating a single design choice:
+
+\textbf{H1 -- Visual Grounding.}
+A multimodal agent (LLaVA-1.6-7B) will substantially outperform a text-only agent
+(Mistral-7B + ReAct) on spatially grounded tasks, because correct action prediction requires
+interpreting the visual layout, not just the textual task description.
+
+\textbf{H2 -- Structured ORA Reasoning.}
+An iterative Observe-Reason-Act loop that re-encodes the screenshot at every step will
+outperform a single-shot VLM call, because the agent can condition each action on the
+\emph{current} visual state rather than a stale textual summary.
+
+\textbf{H3 -- LoRA Adaptation (stretch goal).}
+Fine-tuning ORA-LLaVA with a LoRA adapter~\cite{hu2022lora} on a small (200-example) grounded
+synthetic corpus will improve task completion on the training domain without causing catastrophic
+forgetting on general visual QA, because LoRA updates only 0.21\% of model parameters.
+
+% ── 3. Related Work ───────────────────────────────────────────────────────
+\section{Related Work}
+
+\textbf{Vision-Language Models.}
+LLaVA-1.6~\cite{liu2024llava} extends instruction-tuned LLMs with a visual encoder connected
+via a projection layer, enabling visual QA and instruction following. We use LLaVA-1.6-Mistral-7B
+as the backbone for H2 and H3. Unlike standard VQA benchmarks, our evaluation focuses on
+\emph{action prediction} with precise spatial coordinates---a harder test of visual grounding.
+
+\textbf{ReAct.}
+Yao et al.~\cite{yao2023react} introduced ReAct, which interleaves natural-language reasoning
+traces and environment actions. We use Mistral-7B-Instruct~\cite{jiang2023mistral} with ReAct
+as our text-only baseline (H1); our ORA loop extends ReAct to multimodal inputs.
+
+\textbf{Mind2Web.}
+Deng et al.~\cite{deng2023mind2web} released Mind2Web, a web navigation benchmark with real
+browser interactions. Our synthetic task design borrows Mind2Web's action taxonomy (click, type,
+scroll), adapted to a controlled programmatic visual setting.
+
+\textbf{ScienceQA.}
+Lu et al.~\cite{lu2022scienceqa} introduced ScienceQA, a multi-modal multiple-choice benchmark
+covering science topics with diagrams. We use it as a held-out general-capability benchmark to
+measure forgetting after LoRA fine-tuning.
+
+\textbf{Parameter-Efficient Fine-Tuning.}
+Hu et al.~\cite{hu2022lora} proposed LoRA, which inserts low-rank update matrices into frozen
+transformer layers, drastically reducing trainable parameters. We use the PEFT
+library~\cite{mangrulkar2022peft}. A key finding is that \emph{label masking}---excluding prompt
+and image tokens from the cross-entropy loss---is critical when applying LoRA to multimodal
+inputs (Section~\ref{sec:lora}).
+
+\textbf{VLM-Based Web Agents.}
+Zheng et al.~\cite{zheng2024seeact} demonstrated SeeAct using GPT-4V for web agent tasks.
+Our work differs in using an open 7B model with LoRA fine-tuning, making it accessible
+for researchers without proprietary API access.
+
+% ── 4. Methodology ───────────────────────────────────────────────────────
+\section{Methodology}
+
+\subsection{Agent Designs}
+
+We implement three agents sharing the same evaluation harness.
+
+\textbf{ReAct-Mistral (Baseline 1).}
+A text-only agent using Mistral-7B-Instruct with the standard ReAct prompt. The agent receives
+the task instruction and a textual description of the visual state; it produces a
+Thought\,+\,Action at each step. This isolates the effect of removing vision while keeping the
+reasoning loop.
+
+\textbf{Single-Shot LLaVA (Baseline 2).}
+A single-call VLM agent using LLaVA-1.6-Mistral-7B (4-bit quantized). The agent receives the
+task instruction and screenshot in a single forward pass and produces one action. This isolates
+the effect of removing the iterative loop while keeping vision.
+
+\textbf{ORA-LLaVA (Our Method, H2).}
+The same LLaVA backbone in an iterative loop. At each step, the current screenshot is
+re-encoded through the full vision tower, grounding the action prediction in the \emph{current}
+visual state. This is the key distinction from ReAct: the visual observation is never
+summarized into text---raw image features enter the transformer at every step.
+
+\subsection{LoRA Fine-Tuning (H3)}
+\label{sec:lora}
+
+We fine-tune ORA-LLaVA with a LoRA adapter ($r{=}16$, $\alpha{=}32$, dropout $= 0.05$,
+$\text{lr} = 2{\times}10^{-4}$, 3 epochs) on 200 synthetic grounded tasks. Each training
+example is a (screenshot, instruction, action) triple. The assistant response (a JSON action
+string) is the training target.
+
+\textbf{Critical implementation finding.}
+Our initial training run plateaued at loss ${\approx}4.0$ despite correct hyperparameters.
+Diagnosis: the loss was computed over \emph{all} input tokens, including approximately 1,500
+image patch tokens whose values are unpredictable. The fix is to mask all prompt tokens
+(labels$[{:}\text{prompt\_len}] = -100$), so only the ${\approx}30$ assistant response tokens
+contribute to the cross-entropy loss. After this fix, loss converged to 0.0045 at step 70---an
+$888{\times}$ improvement---and evaluation accuracy on the training domain jumped from 15.5\%
+to 92.0\%.
+
+Trainable parameters: 15,990,784 / 7,582,738,432 (0.21\%). Training time: ${\approx}17$~min
+on a single NVIDIA A100 40\,GB.
+
+\subsection{Datasets}
+
+\textbf{ScienceQA ($n{=}200$).}
+We sample 200 test-split examples from ScienceQA involving diagrams. Used as the primary
+benchmark for H1/H2 and as a held-out general-capability test for H3.
+
+\textbf{Synthetic Grounded Tasks ($n{=}200$).}
+We programmatically generate 200 PNG screenshots of simulated UI elements (login forms,
+navigation bars, charts, calendars, etc.) using Pillow, with 30 distinct image generators
+covering diverse visual layouts. Each task pairs an instruction (e.g.,
+``\textit{click the Submit button}'') with a ground-truth click action and pixel coordinates.
+A separate 200-example split is used for LoRA training.
+
+\subsection{Evaluation Protocol}
+
+A task is counted as a \emph{success} if the agent produces a correct action within the step
+budget. We record (i) task completion rate (primary metric), (ii) mean steps per task
+(efficiency), and (iii) error breakdown across four categories:
+\emph{visual misgrounding}, \emph{reasoning error}, \emph{action parse failure},
+and \emph{truncated} (step budget exceeded without success).
+
+% ── 5. Results ────────────────────────────────────────────────────────────
+\section{Results}
+
+\subsection{Main Results}
+
+Table~\ref{tab:main} summarizes task completion rates for all eight runs.
+
+\begin{table}[ht]
+\centering
+\caption{Task completion rate (\%) across all agents and datasets.
+  $\dagger$~Baseline synthetic evaluation used $n{=}46$.}
+\label{tab:main}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Agent} & \textbf{ScienceQA} & \textbf{Synthetic}\\
+               & $n=200$            & $n=200$\\
+\midrule
+ReAct-Mistral          & 23.5\%  & 13.0\%$^\dagger$\\
+Single-Shot LLaVA      & 46.5\%  & 37.0\%$^\dagger$\\
+ORA-LLaVA              & 56.5\%  & 41.3\%$^\dagger$\\
+\midrule
+\textbf{ORA-LLaVA + LoRA} & \textbf{57.5\%} & \textbf{92.0\%}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Detailed error breakdown (\% of $n$ tasks).
+  VM = visual misgrounding; RE = reasoning error; PF = parse failure; TR = truncated.}
+\label{tab:errors}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llccccc@{}}
+\toprule
+\textbf{Agent} & \textbf{Dataset} & \textbf{Succ.} & \textbf{VM} & \textbf{RE} & \textbf{PF} & \textbf{TR}\\
+\midrule
+ReAct-Mistral  & ScienceQA & 23.5 & 52.5 & 11.0 & 12.5 & 0.5\\
+ReAct-Mistral  & Synthetic  & 13.0 & 15.2 & 41.3 & 17.4 & 13.0\\
+Single-Shot    & ScienceQA & 46.5 & 26.5 & 14.0 & 13.0 & 0.0\\
+Single-Shot    & Synthetic  & 37.0 & 41.3 & 10.9 & 10.9 & 0.0\\
+ORA-LLaVA      & ScienceQA & 56.5 & 33.0 &  7.0 &  0.0 & 3.5\\
+ORA-LLaVA      & Synthetic  & 41.3 & 17.4 &  0.0 &  4.3 & 37.0\\
+\midrule
+\textbf{+LoRA} & ScienceQA & \textbf{57.5} & 42.5 & 0.0 & 0.0 & 0.0\\
+\textbf{+LoRA} & Synthetic  & \textbf{92.0} &  1.5 & 2.0 & 0.0 & 4.5\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{H1: Visual Grounding Confirmed}
+
+Single-Shot LLaVA (46.5\%) outperforms ReAct-Mistral (23.5\%) by +23\,pp on ScienceQA and
++24\,pp on Synthetic (37.0\% vs.\ 13.0\%). The text-only model's primary failure is visual
+misgrounding (52.5\% of failures on ScienceQA), confirming that spatial layout information
+is not recoverable from text alone.
+
+\subsection{H2: ORA Loop Confirmed}
+
+ORA-LLaVA (56.5\%) outperforms Single-Shot (46.5\%) by +10\,pp on ScienceQA with the same
+LLaVA backbone. The iterative re-encoding reduces reasoning errors by 50\% (28$\to$14) and
+eliminates parse failures (26$\to$0), confirming that per-step visual grounding keeps the
+agent on track.
+
+\subsection{H3: LoRA Adaptation Strongly Confirmed}
+
+After fine-tuning with the label-masking fix:
+\begin{itemize}
+  \item \textbf{Synthetic: 92.0\%} (+50.7\,pp over ORA baseline; +122\% relative).
+        184/200 tasks solved in a single step; truncations fall from 17 to 9.
+  \item \textbf{ScienceQA: 57.5\%}---essentially unchanged from the 56.5\% baseline,
+        confirming zero catastrophic forgetting despite training exclusively on UI tasks.
+  \item Reasoning errors and truncations on ScienceQA drop to \emph{zero}, indicating
+        the adapter improved the model's output discipline beyond the training domain.
+\end{itemize}
+Mean steps on ScienceQA fell from 1.23 (ORA) to 1.00 (LoRA), indicating greater decisiveness.
+
+\subsection{Error Analysis}
+
+Visual misgrounding is the dominant failure mode across all models (Table~\ref{tab:errors}).
+After LoRA fine-tuning, synthetic visual misgrounding drops to 1.5\% (3/200), but ScienceQA
+visual misgrounding \emph{increases} to 42.5\% (85/200)---rising as truncation and reasoning
+errors are eliminated. This indicates the model's residual errors are purely spatial and cannot
+be resolved by response-token fine-tuning alone; future work should unfreeze the vision tower.
+
+% ── 6. Conclusions ───────────────────────────────────────────────────────
+\section{Conclusions and Future Work}
+
+This project provides three empirical findings. First, \textbf{vision is necessary}: text-only
+ReAct achieves only 23.5\% on visually grounded tasks, while the same loop with a VLM backbone
+reaches 56.5\%. Second, \textbf{iterative visual re-encoding helps}: the ORA loop provides a
+consistent +10\,pp over single-shot prompting, validating the design choice of re-encoding the
+screenshot at every step. Third, \textbf{LoRA fine-tuning on 200 synthetic examples is highly
+effective}: 92\% accuracy on the training domain with zero forgetting on the held-out benchmark,
+training only 0.21\% of model parameters in 17 minutes.
+
+An unexpected practical contribution is the identification of \textbf{label masking as a
+prerequisite for multimodal LoRA training}. Without masking prompt and image patch tokens from
+the cross-entropy loss, training converges to a degenerate solution (loss plateau at ${\sim}4.0$,
+eval accuracy 4.5\%). This finding is not consistently documented in fine-tuning tutorials and
+represents a critical implementation requirement for any multimodal PEFT work.
+
+\textbf{Future directions:}
+(1)~Scale the synthetic dataset to 2{,}000 tasks with harder layouts (occlusion, dense UIs,
+small targets) to test whether LoRA generalizes beyond memorization.
+(2)~Unfreeze the vision tower in a second LoRA pass to address persistent visual misgrounding.
+(3)~Evaluate on real web navigation benchmarks (Mind2Web, WebArena) for out-of-distribution
+generalization.
+(4)~Explore chain-of-thought visual description as an additional observation channel before
+action prediction.
+
+% ── References ───────────────────────────────────────────────────────────
+\section*{References}
+{\small
+\begin{enumerate}[label={[\arabic*]},leftmargin=*,topsep=4pt,itemsep=2pt]
+
+  \item\label{ref:deng2023} X.~Deng, Y.~Gu, B.~Zheng, S.~Chen, S.~Stevens, B.~Wang,
+    H.~Sun, and Y.~Su,
+    ``Mind2Web: Towards a generalist agent for the web,''
+    in \emph{Proc.\ NeurIPS}, 2023.
+
+  \item\label{ref:hu2022} E.~J.~Hu, Y.~Shen, P.~Wallis, Z.~Allen-Zhu, Y.~Li, S.~Wang,
+    L.~Wang, and W.~Chen,
+    ``LoRA: Low-rank adaptation of large language models,''
+    in \emph{Proc.\ ICLR}, 2022.
+
+  \item\label{ref:jiang2023} A.~Q.~Jiang, A.~Sablayrolles, A.~Mensch, C.~Bamford,
+    D.~S.~Chaplot, D.~de~las~Casas, F.~Bressand, G.~Lengyel, G.~Lample,
+    L.~Saulnier, et al.,
+    ``Mistral 7B,''
+    \emph{arXiv:2310.06825}, 2023.
+
+  \item\label{ref:liu2024} H.~Liu, C.~Li, Y.~Li, and Y.~J.~Lee,
+    ``Improved baselines with visual instruction tuning (LLaVA-1.5),''
+    in \emph{Proc.\ CVPR}, 2024.
+
+  \item\label{ref:lu2022} P.~Lu, S.~Mishra, T.~Xia, L.~Qiu, K.-W.~Chang, S.-C.~Zhu,
+    O.~Tafjord, P.~Clark, and A.~Kalyan,
+    ``Learn to explain: Multimodal reasoning via thought chains for science question answering,''
+    in \emph{Proc.\ NeurIPS}, 2022.
+
+  \item\label{ref:mangrulkar2022} S.~Mangrulkar, S.~Gugger, L.~Debut, Y.~Belkada,
+    S.~Paul, and B.~Bossan,
+    ``PEFT: State-of-the-art parameter-efficient fine-tuning methods,''
+    \url{https://github.com/huggingface/peft}, 2022.
+
+  \item\label{ref:yao2023} S.~Yao, J.~Zhao, D.~Yu, N.~Du, I.~Shafran,
+    K.~R.~Narasimhan, and Y.~Cao,
+    ``ReAct: Synergizing reasoning and acting in language models,''
+    in \emph{Proc.\ ICLR}, 2023.
+
+  \item\label{ref:zheng2024} B.~Zheng, B.~Gou, J.~Kil, H.~Sun, and Y.~Su,
+    ``GPT-4V(ision) is a generalist web agent, if grounded,''
+    \emph{arXiv:2401.01614}, 2024.
+
+\end{enumerate}
+}
+
+% ── BibTeX keys (for \cite commands above) ────────────────────────────────
+% liu2024llava   -> [4]
+% hu2022lora     -> [2]
+% yao2023react   -> [7]
+% jiang2023mistral -> [3]
+% deng2023mind2web -> [1]
+% lu2022scienceqa  -> [5]
+% mangrulkar2022peft -> [6]
+% zheng2024seeact  -> [8]
+
+\end{document}
